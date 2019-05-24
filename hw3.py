@@ -33,13 +33,15 @@ class World(object):
 
 	def iter_one(self):
 		workable = lambda x : isinstance(x, Star)
+		print("Value Table")
 		for i in self.nodes.values():
 			if workable(i):
 				i.calc_value(self.disc)
+		print("\nPolicy Table")
+		for i in self.nodes.values():
+			if workable(i):
+				print(i.pols())
 		print()
-		# for i in self.nodes.values():
-		# 	if workable(i):
-		# 		print(i.pols())
 
 class Node(object):
 
@@ -55,7 +57,7 @@ class Node(object):
 		}
 
 	def __str__(self):
-		outstr = f"{self.__doc__} {self.num}: "
+		outstr = f"{self.__doc__} {self.num}: \n"
 		if len(self.det_pass):
 			outstr += ", \n".join([f"{k} : {v}" for k, v in self.det_pass.items()] ) + "\n"  
 		elif len(self.actions):
@@ -109,14 +111,9 @@ class Star(Node):
 		white = "{} : {:.6}\t"
 		for ac_no, node_ in self.actions.items():
 			for node_n, s_node in node_.items(): 
-				# print(s_node)
 				scores[node_n] = s_node["prob"] * (s_node["r"] + gamma * s_node["ptr"].vscore)
 
-
-		# print("-")
-		# print(scores)
 		self.vscore = mx = max(scores.values())
-		# print(self.vscore)
 		self.best_pol = []
 		for k, v in scores.items():
 			if v == mx:
