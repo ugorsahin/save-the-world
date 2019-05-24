@@ -5,7 +5,7 @@ class World(object):
 	def __init__(self, nodes, q_lr, disc):
 		self.nodes = nodes
 		self.qnum = sum([1 if isinstance(v, Round) else 0 for v in self.nodes.values()])
-		self.vnum = sum([1 if isinstance(v, Star) else 0 for v in self.nodes.values()])
+		self.vnum = sum([1 if isinstance(v, Star) or isinstance(v, Teleport) else 0 for v in self.nodes.values()])
 		self.disc = disc
 		self.qlr = q_lr
 		self.qtable = [ [0 if self.nodes[j].det_pass.get(i) else -1  for i in range(self.qnum)] for j in range(self.qnum)]
@@ -27,18 +27,19 @@ class World(object):
 
 	def q_table(self):
 		outstr = "-" * (self.qnum * 8) + "\n"
-		outstr += "|" +"|".join( ["\t|".join([str(i) + " " if i>0 else "_" for i in self.qtable[i]]) + "\t|\n" for i in range(self.qnum)] ) 
+		outstr += "|" +"|".join( ["\t|".join(["{:.4}".format(i) if i>0 else "_" for i in self.qtable[i]]) + "\t|\n" for i in range(self.qnum)] ) 
 		outstr += "-" * (self.qnum * 8) + "\n"
 		return outstr
 
 	def iter_one(self):
+		workable = lambda x : isinstance(x, Star)
 		for i in self.nodes.values():
-			if isinstance(i, Star):
+			if workable(i):
 				i.calc_value(self.disc)
-
-		for i in self.nodes.values():
-			if isinstance(i, Star):
-				print(i.pols())
+		print()
+		# for i in self.nodes.values():
+		# 	if workable(i):
+		# 		print(i.pols())
 
 class Node(object):
 
@@ -59,6 +60,10 @@ class Node(object):
 			outstr += ", \n".join([f"{k} : {v}" for k, v in self.det_pass.items()] ) + "\n"  
 		elif len(self.actions):
 			outstr += ", \n".join([f"{k} : {v}" for k, v in self.actions.items()] ) + "\n"  
+		return outstr
+
+	def pols(self):
+		outstr = f"{self.num} " + ",".join([str(i) for i in self.best_pol])
 		return outstr
 
 
@@ -100,7 +105,8 @@ class Star(Node):
 
 	def calc_value(self, gamma, times=0):
 		scores = {}
-
+		green = "\033[1;32;40m{} : {:.6}\x1b[0m\t"
+		white = "{} : {:.6}\t"
 		for ac_no, node_ in self.actions.items():
 			for node_n, s_node in node_.items(): 
 				# print(s_node)
@@ -116,49 +122,17 @@ class Star(Node):
 			if v == mx:
 				self.best_pol.append(k)
 
-		print(scores)
-
-	def pols(self):
-		outstr = f"{self.num} " + ",".join([str(i) for i in self.best_pol])
-		return outstr
-
-class Teleport(Node):
+		print(self.num, ": |", " ".join([green.format(k, v) if v == mx else white.format(k, v) for k, v in sorted(scores.items(), key=lambda x: x[0])]), "|") 
+		
+class Teleport(Star):
 	"Teleport Node"
 	def __init__(self, **kwargs):
-		Node.__init__(self, kwargs["nodenum"])
+		Star.__init__(self, **kwargs)
 		self.vtable = {} 
 		self.best_pol = []
 		self.vscore = 0
 
-	def add_action(self, num):
-		self.actions[num] = {}
-
-	def add_action_prob(self, **kwargs):
-		a_no = kwargs["action_num"]
-		n_no = kwargs["nodenum"]
-
-		self.actions[a_no][n_no] = {
-			"r": kwargs["reward"],
-			"prob" : kwargs["prob"],
-			"ptr" : kwargs["ptr"]
-		}
-	def calc_value(self, gamma, times=0):
-		scores = {}
-
-		for ac_no, node_ in self.actions.items():
-			for node_n, s_node in node_.items(): 
-				# print(s_node)
-				scores[node_n] = s_node["prob"] * (s_node["r"] + gamma * s_node["ptr"].vscore)
-
-		self.vscore = mx = max(scores)
-
-		self.best_pol = []
-		for i in scores:
-			if i == mx:
-				self.best_pol.append(i)
-
-		print(scores)
-
+	
 class Vortex(Node):
 	"Vortex Node"
 	def __init__(self, **kwargs):
