@@ -270,6 +270,8 @@ def do():
 			inp = input()
 		except EOFError:
 			break
+		if inp == "$":
+			break
 		if inp == "c":
 			world.iter_one()
 
