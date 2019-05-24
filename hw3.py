@@ -4,12 +4,12 @@ import re
 class World(object):
 	def __init__(self, nodes, q_lr, disc):
 		self.nodes = nodes
-		self.qnum = sum([1 if isinstance(v, Round) else 0 for v in self.nodes.values()])
+		self.qnum = sum([1 if isinstance(v, Vortex) or isinstance(v, Round) or isinstance(v, Teleport) else 0 for v in self.nodes.values()])
 		self.vnum = sum([1 if isinstance(v, Star) or isinstance(v, Teleport) else 0 for v in self.nodes.values()])
 		self.disc = disc
 		self.qlr = q_lr
 		self.qtable = [ [0 if self.nodes[j].det_pass.get(i) else -1  for i in range(self.qnum)] for j in range(self.qnum)]
-	
+
 	def run_story(self, episodes):
 		node = self.nodes[episodes[0]]
 		for num in episodes[1:]:
@@ -17,31 +17,37 @@ class World(object):
 			if new_node is node:
 				print("_\n")
 				continue
-			if new_node.num > self.qnum:
+
+			if isinstance(node, Teleport):
 				print("Teleporting")
 				break
-			prev_a = (1-self.qlr) * self.qtable[node.num][new_node.num]
-			self.qtable[node.num][new_node.num] = prev_a + self.qlr * ( reward + self.disc * new_node.max_reward())
+
+			prev_val = self.qtable[node.num][new_node.num] if self.qtable[node.num][new_node.num]>0  else 0
+			prev_a = (1-self.qlr) * prev_val
+			self.qtable[node.num][new_node.num] = prev_a + self.qlr * ( reward + self.disc * max(self.qtable[new_node.num] + [0]))
 			print(self.q_table())
 			node = new_node
 
 	def q_table(self):
 		outstr = "-" * (self.qnum * 8) + "\n"
-		outstr += "|" +"|".join( ["\t|".join(["{:.4}".format(i) if i>0 else "_" for i in self.qtable[i]]) + "\t|\n" for i in range(self.qnum)] ) 
+		outstr += "|" +"|".join( ["\t|".join(["{:.4}".format(float(i)) if i>=0 else "_" for i in self.qtable[i]]) + "\t|\n" for i in range(self.qnum)] ) 
 		outstr += "-" * (self.qnum * 8) + "\n"
 		return outstr
 
 	def iter_one(self):
+		r_val = {}
 		workable = lambda x : isinstance(x, Star)
 		print("Value Table")
 		for i in self.nodes.values():
 			if workable(i):
-				i.calc_value(self.disc)
+				r_val[i.num] = i.calc_value(self.disc)
+
 		print("\nPolicy Table")
 		for i in self.nodes.values():
 			if workable(i):
+				i.vscore = r_val[i.num]
 				print(i.pols())
-		print()
+		print("--\n")
 
 class Node(object):
 
@@ -80,9 +86,6 @@ class Round(Node):
 		except:
 			return 0, self
 
-	def max_reward(self):
-		return max([v["reward"] for v in self.det_pass.values()])
-
 class Star(Node):
 	"Star Node"
 	def __init__(self, **kwargs):
@@ -90,6 +93,7 @@ class Star(Node):
 		self.vtable = {} 
 		self.best_pol = []
 		self.vscore = 0
+		self.a_score = {}
 
 	def add_action_prob(self, **kwargs):
 		a_no = kwargs["action_num"]
@@ -107,19 +111,29 @@ class Star(Node):
 
 	def calc_value(self, gamma, times=0):
 		scores = {}
-		green = "\033[1;32;40m{} : {:.6}\x1b[0m\t"
-		white = "{} : {:.6}\t"
+		green = "\033[1;32;40m{} : {:.5}\x1b[0m\t"
+		white = "{} : {:.5}\t"
+		
 		for ac_no, node_ in self.actions.items():
-			for node_n, s_node in node_.items(): 
-				scores[node_n] = s_node["prob"] * (s_node["r"] + gamma * s_node["ptr"].vscore)
+			v_scores = {}
+			for node_n, s_node in node_.items():
+				val = s_node["prob"] * (s_node["r"] + gamma * s_node["ptr"].vscore)
+				scores[node_n] = val
+				v_scores[node_n] = val
 
-		self.vscore = mx = max(scores.values())
+			self.a_score[ac_no] = sum(v_scores.values())
+		
+
+		mx = max(v_scores.values())
+		mx_a = max(self.a_score.values())
 		self.best_pol = []
-		for k, v in scores.items():
-			if v == mx:
-				self.best_pol.append(k)
+		
+		for k, v in self.a_score.items():
+			if v == mx_a:
+				self.best_pol.extend(self.actions[k])
 
-		print(self.num, ": |", " ".join([green.format(k, v) if v == mx else white.format(k, v) for k, v in sorted(scores.items(), key=lambda x: x[0])]), "|") 
+		print(self.num, ": |", " ".join([green.format(k, v) if v == mx_a else white.format(k, v) for k, v in sorted(self.a_score.items(), key=lambda x: x[0])]), "|")
+		return max(self.a_score.values())
 		
 class Teleport(Star):
 	"Teleport Node"
@@ -232,13 +246,9 @@ def parseinput(inpfunc):
 	wd["actions"] = [  actiondivider([int(x) for x in inpfunc().strip().split()]) for _ in range(wd["total_actions"]) ]
 	wd["action_table"] = action_parser(inpfunc)
 
-	# for k, v in wd.items():
-	# 	print(k, v)
-
 	return wd
 
 def do():
-# if __name__ == "__main__":
 	filename = "input.inp"
 
 	global file_o, ctr
@@ -272,6 +282,8 @@ def do():
 		if inp == "c":
 			world.iter_one()
 
-st = time.time()
-do()
-print(time.time() - st)
+
+if __name__ == "__main__":
+	# st = time.time()
+	do()
+	# print(time.time() - st)
